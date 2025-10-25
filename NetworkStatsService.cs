@@ -1,5 +1,6 @@
 using System.Net.NetworkInformation;
 using Microsoft.UI.Dispatching;
+using NetStats.Models;
 
 namespace NetStats;
 
@@ -7,10 +8,12 @@ namespace NetStats;
 /// Servizio che monitora le statistiche di rete in tempo reale.
 /// Calcola i Mb/s cumulativi da tutte le interfacce di rete attive (escludendo loopback)
 /// e aggiorna il ViewModel ogni secondo.
+/// Persiste i dati di utilizzo cumulativo.
 /// </summary>
 public sealed class NetworkStatsService : IDisposable
 {
     private readonly NetworkMonitorViewModel _viewModel;
+    private readonly NetworkUsageStorage _storage;
     private readonly DispatcherQueue _dispatcherQueue;
     private DispatcherQueueTimer? _updateTimer;
 
@@ -18,9 +21,10 @@ public sealed class NetworkStatsService : IDisposable
     private long _lastSentBytes;
     private DateTime _lastUpdateTime;
 
-    public NetworkStatsService(NetworkMonitorViewModel viewModel, DispatcherQueue dispatcherQueue)
+    public NetworkStatsService(NetworkMonitorViewModel viewModel, NetworkUsageStorage storage, DispatcherQueue dispatcherQueue)
     {
         _viewModel = viewModel;
+        _storage = storage;
         _dispatcherQueue = dispatcherQueue;
 
         _lastUpdateTime = DateTime.UtcNow;
@@ -66,6 +70,12 @@ public sealed class NetworkStatsService : IDisposable
 
         var receivedBytesDelta = receivedBytes - _lastReceivedBytes;
         var sentBytesDelta = sentBytes - _lastSentBytes;
+
+        // Persisti i dati solo se sono positivi (evita dati negativi da reset di interfacce)
+        if (receivedBytesDelta >= 0 && sentBytesDelta >= 0)
+        {
+            _storage.UpdateUsage(receivedBytesDelta, sentBytesDelta);
+        }
 
         // Conversione da byte/s a Mb/s (1 Mb = 1,000,000 bit = 125,000 byte)
         var downloadMbps = (receivedBytesDelta / timeDeltaSeconds) / 125_000d;

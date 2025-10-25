@@ -123,4 +123,22 @@
   <data name="CommandTitle" xml:space="preserve">
     <value>Real-time network usage monitor</value>
   </data>
+  <data name="PopupTitle" xml:space="preserve">
+    <value>Cumulative Statistics</value>
+  </data>
+  <data name="PopupDailyTitle" xml:space="preserve">
+    <value>Daily</value>
+  </data>
+  <data name="PopupMonthlyTitle" xml:space="preserve">
+    <value>Monthly</value>
+  </data>
+  <data name="PopupYearlyTitle" xml:space="preserve">
+    <value>Yearly</value>
+  </data>
+  <data name="PopupDownloadLabel" xml:space="preserve">
+    <value>↓ Download</value>
+  </data>
+  <data name="PopupUploadLabel" xml:space="preserve">
+    <value>↑ Upload</value>
+  </data>
 </root>
