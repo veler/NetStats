@@ -78,8 +78,8 @@ public sealed class NetworkStatsService : IDisposable
         }
 
         // Conversione da byte/s a Mb/s (1 Mb = 1,000,000 bit = 125,000 byte)
-        var downloadMbps = (receivedBytesDelta / timeDeltaSeconds) / 125_000d;
-        var uploadMbps = (sentBytesDelta / timeDeltaSeconds) / 125_000d;
+        var downloadMbps = Math.Max(0, (receivedBytesDelta / timeDeltaSeconds) / 125_000d);
+        var uploadMbps = Math.Max(0, (sentBytesDelta / timeDeltaSeconds) / 125_000d);
 
         // Aggiorna il ViewModel con i valori formattati a 2 decimali
         _viewModel.DownloadMbps = downloadMbps.ToString("F2");
