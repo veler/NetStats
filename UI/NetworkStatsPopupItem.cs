@@ -65,7 +65,7 @@ internal sealed class NetworkStatsPopupItem
         _view.PopupContent = NetworkStatsPopup.CreateView(_storage, _dispatcherQueue);
     }
 
-    internal static SillListViewPopupItem CreateView(NetworkMonitorViewModel viewModel, NetworkUsageStorage storage, DispatcherQueue dispatcherQueue)
+    public static SillListViewPopupItem CreateView(NetworkMonitorViewModel viewModel, NetworkUsageStorage storage, DispatcherQueue dispatcherQueue)
     {
         var item = new NetworkStatsPopupItem(viewModel, storage, dispatcherQueue);
         return item._view;

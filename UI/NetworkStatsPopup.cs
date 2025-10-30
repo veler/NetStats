@@ -58,7 +58,7 @@ internal sealed class NetworkStatsPopup : IDisposable
             );
     }
 
-    internal static SillPopupContent CreateView(NetworkUsageStorage storage, DispatcherQueue dispatcherQueue)
+    public static SillPopupContent CreateView(NetworkUsageStorage storage, DispatcherQueue dispatcherQueue)
     {
         var popup = new NetworkStatsPopup(storage, dispatcherQueue);
         return popup._view;

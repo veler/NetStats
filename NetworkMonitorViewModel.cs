@@ -1,5 +1,8 @@
+using Microsoft.UI.Dispatching;
+using NetStats.Models;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using WindowSill.API;
 
 namespace NetStats;
 
@@ -34,4 +37,12 @@ public sealed class NetworkMonitorViewModel : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
+
+    public static SillView CreateView(NetworkMonitorViewModel vm, NetworkUsageStorage storage, DispatcherQueue dispatcherQueue)
+    {
+        SillView view = new();
+        view.Content = new NetStatsView(view, vm, storage, dispatcherQueue);
+        return view;
+    }
+
 }
