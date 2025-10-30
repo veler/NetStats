@@ -19,13 +19,13 @@ public sealed class NetworkMonitorViewModel : INotifyPropertyChanged
 
     public string DownloadMbps
     {
-        get => _downloadMbps;
+        get => _downloadMbps + " Mb/s";
         set => SetProperty(ref _downloadMbps, value);
     }
 
     public string UploadMbps
     {
-        get => _uploadMbps;
+        get => _uploadMbps + " Mb/s";
         set => SetProperty(ref _uploadMbps, value);
     }
 

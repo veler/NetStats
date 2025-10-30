@@ -38,7 +38,7 @@ internal sealed class NetStatsView : Button
                                 new TextBlock()
                                     .Text("↓"),
                                 new TextBlock()
-                                    .MinWidth(32)
+                                    .MinWidth(60)
                                     .VerticalAlignment(VerticalAlignment.Center)
                                     .Text(x => x.Binding(() => vm.DownloadMbps).OneWay())
                             ),
@@ -50,7 +50,7 @@ internal sealed class NetStatsView : Button
                                 new TextBlock()
                                     .Text("↑"),
                                 new TextBlock()
-                                    .MinWidth(32)
+                                    .MinWidth(60)
                                     .VerticalAlignment(VerticalAlignment.Center)
                                     .Text(x => x.Binding(() => vm.UploadMbps).OneWay())
                             )
