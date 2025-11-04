@@ -26,7 +26,7 @@ public sealed class NetStatsSill
     public NetStatsSill(IPluginInfo pluginInfo)
     {
         _viewModel = new NetworkMonitorViewModel();
-        _storage = new NetworkUsageStorage();
+        _storage = new NetworkUsageStorage(pluginInfo);
         _networkStatsService = new NetworkStatsService(_viewModel, _storage, DispatcherQueue.GetForCurrentThread());
         _pluginInfo = pluginInfo;
         View = NetworkMonitorViewModel.CreateView(_viewModel, _storage, DispatcherQueue.GetForCurrentThread());
