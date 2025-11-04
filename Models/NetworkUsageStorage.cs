@@ -1,5 +1,6 @@
 using System.Text.Json;
-using SysPath = System.IO.Path;
+using WindowSill.API;
+using Path = System.IO.Path;
 
 namespace NetStats.Models;
 
@@ -12,12 +13,10 @@ public sealed class NetworkUsageStorage
     private readonly string _storageFilePath;
     private NetworkUsagePersistentData _data = new();
 
-    public NetworkUsageStorage()
+    public NetworkUsageStorage(IPluginInfo pluginInfo)
     {
-        var appDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var netStatsFolder = SysPath.Combine(appDataFolder, "NetStats");
-        Directory.CreateDirectory(netStatsFolder);
-        _storageFilePath = SysPath.Combine(netStatsFolder, "usage_data.json");
+        string _pluginDataFolder = pluginInfo.GetPluginDataFolder();
+        _storageFilePath = Path.Combine(_pluginDataFolder, "network_usage_data.json");
 
         LoadData();
     }
