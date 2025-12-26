@@ -1,3 +1,6 @@
+# 0.3.0
+- Added interfaces selection in settings
+
 # 0.2.2
 - Changed storage path to use WindowSill plugin data folder
 
