@@ -22,12 +22,14 @@ public sealed class NetStatsSill
 
     private readonly IPluginInfo _pluginInfo;
 
+    internal static readonly SettingDefinition<string[]> DisabledInterfacesSetting = new(Array.Empty<string>(), typeof(NetStatsSill).Assembly);
+
     [ImportingConstructor]
-    public NetStatsSill(IPluginInfo pluginInfo)
+    public NetStatsSill(IPluginInfo pluginInfo, ISettingsProvider settingsProvider)
     {
         _viewModel = new NetworkMonitorViewModel();
         _storage = new NetworkUsageStorage(pluginInfo);
-        _networkStatsService = new NetworkStatsService(_viewModel, _storage, DispatcherQueue.GetForCurrentThread());
+        _networkStatsService = new NetworkStatsService(_viewModel, _storage, DispatcherQueue.GetForCurrentThread(), settingsProvider);
         _pluginInfo = pluginInfo;
         View = NetworkMonitorViewModel.CreateView(_viewModel, _storage, DispatcherQueue.GetForCurrentThread());
     }
@@ -44,7 +46,7 @@ public sealed class NetStatsSill
 
     public SillView? PlaceholderView => null;
 
-    public SillSettingsView[]? SettingsViews => null;
+    public SillSettingsView[]? SettingsViews => new[] { NetStatsSettingsView.Create(_networkStatsService) };
 
     public ValueTask OnActivatedAsync()
     {

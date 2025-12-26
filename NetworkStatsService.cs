@@ -1,6 +1,9 @@
 using System.Net.NetworkInformation;
 using Microsoft.UI.Dispatching;
 using NetStats.Models;
+using NetStats.UI;
+using System.Collections.ObjectModel;
+using WindowSill.API;
 
 namespace NetStats;
 
@@ -15,20 +18,46 @@ public sealed class NetworkStatsService : IDisposable
     private readonly NetworkMonitorViewModel _viewModel;
     private readonly NetworkUsageStorage _storage;
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly ISettingsProvider _settingsProvider;
     private DispatcherQueueTimer? _updateTimer;
 
     private long _lastReceivedBytes;
     private long _lastSentBytes;
     private DateTime _lastUpdateTime;
 
-    public NetworkStatsService(NetworkMonitorViewModel viewModel, NetworkUsageStorage storage, DispatcherQueue dispatcherQueue)
+    private HashSet<string> _disabledInterfaceIds = new();
+    
+    // Mappa per tracciare i dati precedenti per ogni interfaccia (per calcolare la velocità)
+    private Dictionary<string, (long Rx, long Tx)> _previousInterfaceStats = new();
+
+    public ObservableCollection<NetworkInterfaceViewModel> Interfaces { get; } = new();
+
+    public NetworkStatsService(NetworkMonitorViewModel viewModel, NetworkUsageStorage storage, DispatcherQueue dispatcherQueue, ISettingsProvider settingsProvider)
     {
         _viewModel = viewModel;
         _storage = storage;
         _dispatcherQueue = dispatcherQueue;
+        _settingsProvider = settingsProvider;
+
+        var disabled = _settingsProvider.GetSetting(NetStatsSill.DisabledInterfacesSetting);
+        if (disabled != null)
+        {
+            _disabledInterfaceIds = new HashSet<string>(disabled);
+        }
+
+        _settingsProvider.SettingChanged += OnSettingChanged;
 
         _lastUpdateTime = DateTime.UtcNow;
         InitializeNetworkStats();
+    }
+
+    private void OnSettingChanged(object? sender, SettingChangedEventArgs e)
+    {
+        if (e.SettingName == NetStatsSill.DisabledInterfacesSetting.Name)
+        {
+            var disabled = _settingsProvider.GetSetting(NetStatsSill.DisabledInterfacesSetting);
+            _disabledInterfaceIds = new HashSet<string>(disabled ?? Array.Empty<string>());
+        }
     }
 
     /// <summary>
@@ -53,9 +82,19 @@ public sealed class NetworkStatsService : IDisposable
 
     private void InitializeNetworkStats()
     {
-        var (receivedBytes, sentBytes) = GetCumulativeNetworkStats();
-        _lastReceivedBytes = receivedBytes;
-        _lastSentBytes = sentBytes;
+        try
+        {
+            NetworkInterface[] interfaces = NetworkInterface.GetAllNetworkInterfaces();
+            foreach (var networkInterface in interfaces)
+            {
+                if (IsPhysicalInterface(networkInterface))
+                {
+                    var ipv4Stats = networkInterface.GetIPv4Statistics();
+                    _previousInterfaceStats[networkInterface.Id] = (ipv4Stats.BytesReceived, ipv4Stats.BytesSent);
+                }
+            }
+        }
+        catch { }
     }
 
     private void UpdateNetworkStats()
@@ -66,38 +105,8 @@ public sealed class NetworkStatsService : IDisposable
         if (timeDeltaSeconds <= 0)
             return;
 
-        var (receivedBytes, sentBytes) = GetCumulativeNetworkStats();
-
-        var receivedBytesDelta = receivedBytes - _lastReceivedBytes;
-        var sentBytesDelta = sentBytes - _lastSentBytes;
-
-        // Persisti i dati solo se sono positivi (evita dati negativi da reset di interfacce)
-        if (receivedBytesDelta >= 0 && sentBytesDelta >= 0)
-        {
-            _storage.UpdateUsage(receivedBytesDelta, sentBytesDelta);
-        }
-
-        // Conversione da byte/s a Mb/s (1 Mb = 1,000,000 bit = 125,000 byte)
-        var downloadMbps = Math.Max(0, (receivedBytesDelta / timeDeltaSeconds) / 125_000d);
-        var uploadMbps = Math.Max(0, (sentBytesDelta / timeDeltaSeconds) / 125_000d);
-
-        // Aggiorna il ViewModel con i valori formattati a 2 decimali
-        _viewModel.DownloadMbps = downloadMbps.ToString("F2");
-        _viewModel.UploadMbps = uploadMbps.ToString("F2");
-
-        _lastReceivedBytes = receivedBytes;
-        _lastSentBytes = sentBytes;
-        _lastUpdateTime = now;
-    }
-
-    /// <summary>
-    /// Calcola i byte cumulativi ricevuti e inviati da tutte le interfacce di rete attive.
-    /// Considera solo le interfacce hardware fisiche (con MAC address valido e velocità positiva).
-    /// </summary>
-    private static (long ReceivedBytes, long SentBytes) GetCumulativeNetworkStats()
-    {
-        long totalReceivedBytes = 0;
-        long totalSentBytes = 0;
+        long totalReceivedBytesDelta = 0;
+        long totalSentBytesDelta = 0;
 
         try
         {
@@ -108,26 +117,116 @@ public sealed class NetworkStatsService : IDisposable
                 if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback)
                     continue;
 
-                // Scarta interfacce non operative
-                if (networkInterface.OperationalStatus != OperationalStatus.Up)
-                    continue;
-
-                // Verifica se è una interfaccia hardware: deve avere MAC address valido e velocità > 0
+                // Verifica se è una interfaccia hardware
                 if (!IsPhysicalInterface(networkInterface))
                     continue;
 
+                var id = networkInterface.Id;
                 var ipv4Stats = networkInterface.GetIPv4Statistics();
-                totalReceivedBytes += ipv4Stats.BytesReceived;
-                totalSentBytes += ipv4Stats.BytesSent;
+                long currentRx = ipv4Stats.BytesReceived;
+                long currentTx = ipv4Stats.BytesSent;
+
+                // Calculate delta for this interface
+                long deltaRx = 0;
+                long deltaTx = 0;
+
+                if (_previousInterfaceStats.TryGetValue(id, out var prevStats))
+                {
+                    deltaRx = currentRx - prevStats.Rx;
+                    deltaTx = currentTx - prevStats.Tx;
+                    // Handle reset/overflow
+                    if (deltaRx < 0) deltaRx = currentRx;
+                    if (deltaTx < 0) deltaTx = currentTx;
+                }
+                _previousInterfaceStats[id] = (currentRx, currentTx);
+
+                // Update ViewModel
+                var vm = Interfaces.FirstOrDefault(x => x.Id == id);
+                if (vm == null)
+                {
+                    vm = new NetworkInterfaceViewModel
+                    {
+                        Id = id,
+                        Name = networkInterface.Name,
+                        Description = networkInterface.Description,
+                        IsSelected = !_disabledInterfaceIds.Contains(id)
+                    };
+                    vm.SelectionChanged += OnInterfaceSelectionChanged;
+                    Interfaces.Add(vm);
+                }
+                else
+                {
+                    bool shouldBeSelected = !_disabledInterfaceIds.Contains(id);
+                    if (vm.IsSelected != shouldBeSelected)
+                    {
+                        vm.SelectionChanged -= OnInterfaceSelectionChanged;
+                        vm.IsSelected = shouldBeSelected;
+                        vm.SelectionChanged += OnInterfaceSelectionChanged;
+                    }
+                }
+
+                // Update stats in VM
+                vm.RxTotal = $"Rx: {FormatBytes(currentRx)}";
+                vm.TxTotal = $"Tx: {FormatBytes(currentTx)}";
+
+                double speedRxMbps = (deltaRx / timeDeltaSeconds) / 125_000d;
+                double speedTxMbps = (deltaTx / timeDeltaSeconds) / 125_000d;
+                vm.CurrentSpeed = $"↓ {speedRxMbps:F2} Mb/s  ↑ {speedTxMbps:F2} Mb/s";
+
+                // Add to global total if selected
+                if (vm.IsSelected)
+                {
+                    totalReceivedBytesDelta += deltaRx;
+                    totalSentBytesDelta += deltaTx;
+                }
             }
         }
         catch
         {
-            // Se si verifica un errore nel recupero delle statistiche, ritorna 0,0
-            return (0, 0);
+            // Ignore errors
         }
 
-        return (totalReceivedBytes, totalSentBytes);
+        // Persisti i dati solo se sono positivi
+        if (totalReceivedBytesDelta >= 0 && totalSentBytesDelta >= 0)
+        {
+            _storage.UpdateUsage(totalReceivedBytesDelta, totalSentBytesDelta);
+        }
+
+        // Conversione da byte/s a Mb/s
+        var downloadMbps = Math.Max(0, (totalReceivedBytesDelta / timeDeltaSeconds) / 125_000d);
+        var uploadMbps = Math.Max(0, (totalSentBytesDelta / timeDeltaSeconds) / 125_000d);
+
+        // Aggiorna il ViewModel con i valori formattati a 2 decimali
+        _viewModel.DownloadMbps = downloadMbps.ToString("F2");
+        _viewModel.UploadMbps = uploadMbps.ToString("F2");
+
+        _lastUpdateTime = now;
+    }
+
+    private void OnInterfaceSelectionChanged(object? sender, EventArgs e)
+    {
+        if (sender is NetworkInterfaceViewModel vm)
+        {
+            if (vm.IsSelected)
+                _disabledInterfaceIds.Remove(vm.Id);
+            else
+                _disabledInterfaceIds.Add(vm.Id);
+
+            _settingsProvider.SetSetting(NetStatsSill.DisabledInterfacesSetting, _disabledInterfaceIds.ToArray());
+        }
+    }
+
+    private string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
     }
 
     /// <summary>
