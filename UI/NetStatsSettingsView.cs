@@ -8,8 +8,52 @@ namespace NetStats;
 
 internal static class NetStatsSettingsView
 {
-    public static SillSettingsView Create(NetworkStatsService service)
+    public static SillSettingsView Create(NetworkStatsService service, ISettingsProvider settingsProvider)
     {
+        // Create main container
+        var container = new StackPanel { Spacing = 16 };
+
+        // Add unit selector
+        var unitPanel = new StackPanel { Spacing = 8 };
+        var unitLabel = new TextBlock { Text = "Speed Unit:", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        var unitComboBox = new ComboBox
+        {
+            ItemsSource = new[] { "Mbps", "Kbps", "MBps", "KBps" },
+            SelectedItem = settingsProvider.GetSetting(NetStatsSill.SpeedUnitSetting) ?? "Mbps",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        
+        // Handle selection changes
+        unitComboBox.SelectionChanged += (s, e) =>
+        {
+            if (unitComboBox.SelectedItem is string selectedUnit)
+            {
+                settingsProvider.SetSetting(NetStatsSill.SpeedUnitSetting, selectedUnit);
+            }
+        };
+        
+        unitPanel.Children.Add(unitLabel);
+        unitPanel.Children.Add(unitComboBox);
+        container.Children.Add(unitPanel);
+
+        // Add separator
+        container.Children.Add(new Microsoft.UI.Xaml.Shapes.Rectangle 
+        { 
+            Height = 1, 
+            Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray) { Opacity = 0.2 },
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 8, 0, 8)
+        });
+
+        // Add interfaces label
+        var interfacesLabel = new TextBlock 
+        { 
+            Text = "Network Interfaces:", 
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        container.Children.Add(interfacesLabel);
+
         var listView = new ListView();
         listView.ItemsSource = service.Interfaces;
 
@@ -37,10 +81,11 @@ internal static class NetStatsSettingsView
 
         listView.ItemTemplate = (DataTemplate)XamlReader.Load(xaml);
         listView.SelectionMode = ListViewSelectionMode.None;
+        container.Children.Add(listView);
 
         return new SillSettingsView(
-            "Network Interfaces",
-            new Lazy<FrameworkElement>(() => listView)
+            "NetStats Settings",
+            new Lazy<FrameworkElement>(() => container)
         );
     }
 }

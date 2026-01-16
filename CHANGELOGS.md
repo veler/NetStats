@@ -1,3 +1,6 @@
+# 0.3.1
+- Added unit selection in settings
+
 # 0.3.0
 - Added interfaces selection in settings
 

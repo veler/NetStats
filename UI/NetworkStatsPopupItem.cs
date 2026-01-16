@@ -43,7 +43,7 @@ internal sealed class NetworkStatsPopupItem
                                 new TextBlock()
                                     .MinWidth(32)
                                     .VerticalAlignment(VerticalAlignment.Center)
-                                    .Text(x => x.Binding(() => vm.DownloadMbps).OneWay())
+                                    .Text(x => x.Binding(() => vm.DownloadSpeedFormatted).OneWay())
                             ),
                         new StackPanel()
                             .Orientation(Orientation.Horizontal)
@@ -55,7 +55,7 @@ internal sealed class NetworkStatsPopupItem
                                 new TextBlock()
                                     .MinWidth(32)
                                     .VerticalAlignment(VerticalAlignment.Center)
-                                    .Text(x => x.Binding(() => vm.UploadMbps).OneWay())
+                                    .Text(x => x.Binding(() => vm.UploadSpeedFormatted).OneWay())
                             )
                     )
                 )

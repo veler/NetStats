@@ -19,10 +19,12 @@ public sealed class NetStatsSill
     private readonly NetworkMonitorViewModel _viewModel;
     private readonly NetworkUsageStorage _storage;
     private readonly NetworkStatsService _networkStatsService;
+    private readonly ISettingsProvider _settingsProvider;
 
     private readonly IPluginInfo _pluginInfo;
 
     internal static readonly SettingDefinition<string[]> DisabledInterfacesSetting = new(Array.Empty<string>(), typeof(NetStatsSill).Assembly);
+    internal static readonly SettingDefinition<string> SpeedUnitSetting = new("Mbps", typeof(NetStatsSill).Assembly);
 
     [ImportingConstructor]
     public NetStatsSill(IPluginInfo pluginInfo, ISettingsProvider settingsProvider)
@@ -31,6 +33,7 @@ public sealed class NetStatsSill
         _storage = new NetworkUsageStorage(pluginInfo);
         _networkStatsService = new NetworkStatsService(_viewModel, _storage, DispatcherQueue.GetForCurrentThread(), settingsProvider);
         _pluginInfo = pluginInfo;
+        _settingsProvider = settingsProvider;
         View = NetworkMonitorViewModel.CreateView(_viewModel, _storage, DispatcherQueue.GetForCurrentThread());
     }
 
@@ -46,7 +49,7 @@ public sealed class NetStatsSill
 
     public SillView? PlaceholderView => null;
 
-    public SillSettingsView[]? SettingsViews => new[] { NetStatsSettingsView.Create(_networkStatsService) };
+    public SillSettingsView[]? SettingsViews => new[] { NetStatsSettingsView.Create(_networkStatsService, _settingsProvider) };
 
     public ValueTask OnActivatedAsync()
     {

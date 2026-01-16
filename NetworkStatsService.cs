@@ -26,6 +26,7 @@ public sealed class NetworkStatsService : IDisposable
     private DateTime _lastUpdateTime;
 
     private HashSet<string> _disabledInterfaceIds = new();
+    private string _speedUnit = "Mbps";
     
     // Mappa per tracciare i dati precedenti per ogni interfaccia (per calcolare la velocità)
     private Dictionary<string, (long Rx, long Tx)> _previousInterfaceStats = new();
@@ -45,6 +46,8 @@ public sealed class NetworkStatsService : IDisposable
             _disabledInterfaceIds = new HashSet<string>(disabled);
         }
 
+        _speedUnit = _settingsProvider.GetSetting(NetStatsSill.SpeedUnitSetting) ?? "Mbps";
+
         _settingsProvider.SettingChanged += OnSettingChanged;
 
         _lastUpdateTime = DateTime.UtcNow;
@@ -57,6 +60,10 @@ public sealed class NetworkStatsService : IDisposable
         {
             var disabled = _settingsProvider.GetSetting(NetStatsSill.DisabledInterfacesSetting);
             _disabledInterfaceIds = new HashSet<string>(disabled ?? Array.Empty<string>());
+        }
+        else if (e.SettingName == NetStatsSill.SpeedUnitSetting.Name)
+        {
+            _speedUnit = _settingsProvider.GetSetting(NetStatsSill.SpeedUnitSetting) ?? "Mbps";
         }
     }
 
@@ -169,9 +176,10 @@ public sealed class NetworkStatsService : IDisposable
                 vm.RxTotal = $"Rx: {FormatBytes(currentRx)}";
                 vm.TxTotal = $"Tx: {FormatBytes(currentTx)}";
 
-                double speedRxMbps = (deltaRx / timeDeltaSeconds) / 125_000d;
-                double speedTxMbps = (deltaTx / timeDeltaSeconds) / 125_000d;
-                vm.CurrentSpeed = $"↓ {speedRxMbps:F2} Mb/s  ↑ {speedTxMbps:F2} Mb/s";
+                double speedRx = deltaRx / timeDeltaSeconds;
+                double speedTx = deltaTx / timeDeltaSeconds;
+                var (formattedRx, formattedTx, unit) = FormatSpeed(speedRx, speedTx);
+                vm.CurrentSpeed = $"↓ {formattedRx} {unit}  ↑ {formattedTx} {unit}";
 
                 // Add to global total if selected
                 if (vm.IsSelected)
@@ -192,13 +200,14 @@ public sealed class NetworkStatsService : IDisposable
             _storage.UpdateUsage(totalReceivedBytesDelta, totalSentBytesDelta);
         }
 
-        // Conversione da byte/s a Mb/s
-        var downloadMbps = Math.Max(0, (totalReceivedBytesDelta / timeDeltaSeconds) / 125_000d);
-        var uploadMbps = Math.Max(0, (totalSentBytesDelta / timeDeltaSeconds) / 125_000d);
+        // Calcola velocità totale
+        double totalDownloadBytesPerSec = Math.Max(0, totalReceivedBytesDelta / timeDeltaSeconds);
+        double totalUploadBytesPerSec = Math.Max(0, totalSentBytesDelta / timeDeltaSeconds);
 
-        // Aggiorna il ViewModel con i valori formattati a 2 decimali
-        _viewModel.DownloadMbps = downloadMbps.ToString("F2");
-        _viewModel.UploadMbps = uploadMbps.ToString("F2");
+        var (formattedDownload, formattedUpload, speedUnit) = FormatSpeed(totalDownloadBytesPerSec, totalUploadBytesPerSec);
+        _viewModel.DownloadSpeed = formattedDownload;
+        _viewModel.UploadSpeed = formattedUpload;
+        _viewModel.SpeedUnit = speedUnit;
 
         _lastUpdateTime = now;
     }
@@ -214,6 +223,43 @@ public sealed class NetworkStatsService : IDisposable
 
             _settingsProvider.SetSetting(NetStatsSill.DisabledInterfacesSetting, _disabledInterfaceIds.ToArray());
         }
+    }
+
+    private (string rx, string tx, string unit) FormatSpeed(double bytesPerSecRx, double bytesPerSecTx)
+    {
+        double rxValue, txValue;
+        string unit;
+
+        switch (_speedUnit)
+        {
+            case "Kbps":
+                rxValue = (bytesPerSecRx * 8) / 1_000d;
+                txValue = (bytesPerSecTx * 8) / 1_000d;
+                unit = "Kb/s";
+                break;
+            case "KBps":
+                rxValue = bytesPerSecRx / 1_000d;
+                txValue = bytesPerSecTx / 1_000d;
+                unit = "KB/s";
+                break;
+            case "Mbps":
+                rxValue = (bytesPerSecRx * 8) / 1_000_000d;
+                txValue = (bytesPerSecTx * 8) / 1_000_000d;
+                unit = "Mb/s";
+                break;
+            case "MBps":
+                rxValue = bytesPerSecRx / 1_000_000d;
+                txValue = bytesPerSecTx / 1_000_000d;
+                unit = "MB/s";
+                break;
+            default:
+                rxValue = (bytesPerSecRx * 8) / 1_000_000d;
+                txValue = (bytesPerSecTx * 8) / 1_000_000d;
+                unit = "Mb/s";
+                break;
+        }
+
+        return (rxValue.ToString("F2"), txValue.ToString("F2"), unit);
     }
 
     private string FormatBytes(long bytes)

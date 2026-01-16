@@ -12,22 +12,32 @@ namespace NetStats;
 /// </summary>
 public sealed class NetworkMonitorViewModel : INotifyPropertyChanged
 {
-    private string _downloadMbps = "0.00";
-    private string _uploadMbps = "0.00";
+    private string _downloadSpeed = "0.00";
+    private string _uploadSpeed = "0.00";
+    private string _speedUnit = "Mb/s";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string DownloadMbps
+    public string DownloadSpeed
     {
-        get => _downloadMbps + " Mb/s";
-        set => SetProperty(ref _downloadMbps, value);
+        get => _downloadSpeed;
+        set => SetProperty(ref _downloadSpeed, value);
     }
 
-    public string UploadMbps
+    public string UploadSpeed
     {
-        get => _uploadMbps + " Mb/s";
-        set => SetProperty(ref _uploadMbps, value);
+        get => _uploadSpeed;
+        set => SetProperty(ref _uploadSpeed, value);
     }
+
+    public string SpeedUnit
+    {
+        get => _speedUnit;
+        set => SetProperty(ref _speedUnit, value);
+    }
+
+    public string DownloadSpeedFormatted => $"{_downloadSpeed} {_speedUnit}";
+    public string UploadSpeedFormatted => $"{_uploadSpeed} {_speedUnit}";
 
     private void SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = "")
     {
@@ -35,6 +45,16 @@ public sealed class NetworkMonitorViewModel : INotifyPropertyChanged
         {
             field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            
+            // Notifica le proprietà calcolate quando cambiano i loro componenti
+            if (propertyName == nameof(DownloadSpeed) || propertyName == nameof(SpeedUnit))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DownloadSpeedFormatted)));
+            }
+            if (propertyName == nameof(UploadSpeed) || propertyName == nameof(SpeedUnit))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UploadSpeedFormatted)));
+            }
         }
     }
 
